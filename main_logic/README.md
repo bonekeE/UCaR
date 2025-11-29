@@ -115,6 +115,182 @@ notifier.start()
 - В JSON ключи словарей всегда строки, но значения `user_id` и `car_id` хранятся как числа (int). При чтении из базы данных значения автоматически конвертируются в int.
 - При обновлении даты обслуживания автомобиля (`update_car`) автоматически обновляется дата замены всех расходных материалов этого автомобиля, так как считается, что на каждом обслуживании меняются все детали.
 
+## Схема данных PostgreSQL
+
+### Таблица `users` (Пользователи)
+
+```sql
+CREATE TABLE IF NOT EXISTS users (
+    user_id BIGINT PRIMARY KEY,
+    user_name VARCHAR(255) NOT NULL
+);
+```
+
+**Поля:**
+- `user_id` - Уникальный идентификатор пользователя (Telegram user_id, BIGINT)
+- `user_name` - Имя пользователя (VARCHAR(255), обязательное поле)
+
+---
+
+### Таблица `cars` (Автомобили)
+
+```sql
+CREATE TABLE IF NOT EXISTS cars (
+    car_id SERIAL PRIMARY KEY,
+    brand VARCHAR(255) NOT NULL,
+    model VARCHAR(255) NOT NULL,
+    year_of_manufacture INTEGER NOT NULL,
+    UNIQUE(brand, model, year_of_manufacture)
+);
+```
+
+**Поля:**
+- `car_id` - Уникальный идентификатор автомобиля (SERIAL, автоинкремент)
+- `brand` - Марка автомобиля (VARCHAR(255), обязательное поле)
+- `model` - Модель автомобиля (VARCHAR(255), обязательное поле)
+- `year_of_manufacture` - Год выпуска (INTEGER, обязательное поле)
+
+**Ограничения:**
+- `UNIQUE(brand, model, year_of_manufacture)` - Дедупликация: один автомобиль (бренд + модель + год) хранится один раз в базе
+
+---
+
+### Таблица `user_cars` (Связь пользователей и автомобилей - many-to-many)
+
+```sql
+CREATE TABLE IF NOT EXISTS user_cars (
+    user_car_id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    car_id INTEGER NOT NULL,
+    last_service_time DATE NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (car_id) REFERENCES cars(car_id) ON DELETE CASCADE
+);
+```
+
+**Поля:**
+- `user_car_id` - Уникальный идентификатор связи (SERIAL, автоинкремент)
+- `user_id` - Идентификатор пользователя (BIGINT, внешний ключ на `users.user_id`)
+- `car_id` - Идентификатор автомобиля (INTEGER, внешний ключ на `cars.car_id`)
+- `last_service_time` - Дата последнего обслуживания для этого пользователя и этого автомобиля (DATE, обязательное поле)
+
+**Связи:**
+- `user_cars.user_id` → `users.user_id` (ON DELETE CASCADE - при удалении пользователя удаляются все его связи с автомобилями)
+- `user_cars.car_id` → `cars.car_id` (ON DELETE CASCADE - при удалении автомобиля удаляются все связи с пользователями)
+
+---
+
+### Таблица `consumables` (Расходные материалы / Детали)
+
+```sql
+CREATE TABLE IF NOT EXISTS consumables (
+    consumable_id SERIAL PRIMARY KEY,
+    car_id INTEGER NOT NULL,
+    consumable_name VARCHAR(255) NOT NULL,
+    lifetime_months INTEGER NOT NULL,
+    FOREIGN KEY (car_id) REFERENCES cars(car_id) ON DELETE CASCADE,
+    UNIQUE(car_id, consumable_name)
+);
+```
+
+**Поля:**
+- `consumable_id` - Уникальный идентификатор расходного материала (SERIAL, автоинкремент)
+- `car_id` - Идентификатор автомобиля (INTEGER, внешний ключ на `cars.car_id`)
+- `consumable_name` - Название расходного материала/детали (VARCHAR(255), обязательное поле)
+- `lifetime_months` - Срок службы в месяцах (INTEGER, обязательное поле)
+
+**Связи:**
+- `consumables.car_id` → `cars.car_id` (ON DELETE CASCADE - при удалении автомобиля удаляются все его расходные материалы)
+
+**Ограничения:**
+- `UNIQUE(car_id, consumable_name)` - Один тип детали одного типа на автомобиль (предотвращает дубликаты)
+
+---
+
+### Логика работы схемы
+
+#### При добавлении автомобиля пользователю:
+1. Проверяется, существует ли автомобиль с такими `brand`, `model`, `year_of_manufacture` в таблице `cars`
+2. Если автомобиль не существует:
+   - Создается новая запись в таблице `cars`
+   - Выполняется запрос к LLM (Mistral API) для получения списка деталей и их сроков службы
+   - Для каждой детали из ответа LLM создается запись в таблице `consumables`:
+     - `consumable_name` - название детали из LLM
+     - `lifetime_months` - срок службы в месяцах из LLM
+3. Если автомобиль уже существует - используется существующий `car_id`
+4. Создается запись в таблице `user_cars` с `user_id`, `car_id` и `last_service_time`
+
+#### При обновлении ТО (`update_car`):
+1. Обновляется `user_cars.last_service_time` для конкретной пары `(user_id, car_id)` на текущую дату
+2. Для расчета остатка ресурса деталей используется `user_cars.last_service_time` (предполагается, что на ТО меняются все детали)
+
+#### При получении автомобилей пользователя:
+```sql
+SELECT 
+    c.car_id,
+    c.brand,
+    c.model,
+    c.year_of_manufacture,
+    uc.last_service_time
+FROM user_cars uc
+JOIN cars c ON uc.car_id = c.car_id
+WHERE uc.user_id = ?
+ORDER BY uc.last_service_time DESC;
+```
+
+#### Расчет остатка ресурса детали:
+Остаток ресурса в месяцах рассчитывается как:
+```
+months_remaining = lifetime_months - (текущая_дата - last_service_time) в месяцах
+```
+
+Пример SQL запроса для получения остатка ресурса для конкретного пользователя и автомобиля:
+```sql
+SELECT 
+    cons.consumable_name,
+    cons.lifetime_months,
+    uc.last_service_time,
+    (cons.lifetime_months - EXTRACT(YEAR FROM AGE(CURRENT_DATE, uc.last_service_time)) * 12 
+     - EXTRACT(MONTH FROM AGE(CURRENT_DATE, uc.last_service_time))) AS months_remaining
+FROM consumables cons
+JOIN user_cars uc ON cons.car_id = uc.car_id
+WHERE cons.car_id = ? AND uc.user_id = ?
+ORDER BY months_remaining ASC;
+```
+
+#### Для нотификатора:
+Нотификатор проверяет все расходные материалы и отправляет уведомления, если:
+```
+(текущая_дата - last_service_time) в месяцах >= lifetime_months
+```
+
+Пример SQL запроса для нотификатора:
+```sql
+SELECT 
+    u.user_id,
+    u.user_name,
+    c.car_id,
+    c.brand,
+    c.model,
+    cons.consumable_id,
+    cons.consumable_name,
+    cons.lifetime_months,
+    uc.last_service_time
+FROM consumables cons
+JOIN cars c ON cons.car_id = c.car_id
+JOIN user_cars uc ON c.car_id = uc.car_id
+JOIN users u ON uc.user_id = u.user_id
+WHERE (EXTRACT(EPOCH FROM (CURRENT_DATE - uc.last_service_time)) / 2592000) >= cons.lifetime_months;
+```
+
+---
+
+### Преимущества схемы с many-to-many
+
+1. **Дедупликация**: Один автомобиль (бренд + модель + год) хранится один раз в базе, даже если у него несколько владельцев
+2. **Гибкость**: У разных пользователей могут быть разные даты ТО для одного и того же автомобиля
+3. **Экономия места**: Детали хранятся один раз на автомобиль, а не дублируются для каждого пользователя
+
 ## Запуск примера
 
 ```bash
