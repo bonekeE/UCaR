@@ -5,6 +5,7 @@ from keyboards.common import main_menu_keyboard
 from aiogram import Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message
+from app import user_service
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +25,9 @@ async def cmd_start(message: Message):
     
     user_id = user.id
     
-    logger.info(f"User data retrieved - ID: {user_id}")
-    
-    user_data = {
-        "user_id": user_id,
-        "username": user.username,
-    }
-
     try:
-        print(user_data)
-        # await register_user(user_data)
+        user_service.register_user(user.id, user.username)
+        logger.info(f"User {user.id} {user.username} registered successfully")
 
         await message.answer(GREET_MESSAGE)
         await message.answer(

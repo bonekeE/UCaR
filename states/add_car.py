@@ -1,10 +1,11 @@
 import logging
 from datetime import datetime
 
+from app import car_service
 from keyboards.common import main_menu_keyboard
 
-from aiogram import F
-from aiogram import Dispatcher
+from aiogram import F, Dispatcher
+from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -20,7 +21,7 @@ class AddCarStates(StatesGroup):
     production_year = State()
 
 
-async def cmd_add_car(callback: CallbackQuery, state: FSMContext):
+async def cmd_add_car_callback(callback: CallbackQuery, state: FSMContext):
     """Начало процесса добавления машины"""
     await callback.message.delete()
 
@@ -28,6 +29,16 @@ async def cmd_add_car(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Введите бренд машины:")
     await state.set_state(AddCarStates.brand)
     logger.info(f"User {callback.message.from_user.id} started adding a car")
+
+
+async def cmd_add_car(message: Message, state: FSMContext):
+    """Начало процесса добавления машины"""
+    await message.delete()
+
+    await message.answer("Давайте добавим новую машину!")
+    await message.answer("Введите бренд машины:")
+    await state.set_state(AddCarStates.brand)
+    logger.info(f"User {message.from_user.id} started adding a car")
 
 
 async def process_brand(message: Message, state: FSMContext):
@@ -88,34 +99,34 @@ async def process_production_year(message: Message, state: FSMContext):
             )
             return
 
-        logger.info(f"User {message.from_user.id} entered service date: {year_str}")
+        logger.info(f"User {message.from_user.id} entered production year: {year_str}")
     except ValueError:
-        logger.error(f"User {message.from_user.id} entered service date: {year_str}")
+        logger.error(f"User {message.from_user.id} entered invalid production year: {year_str}")
         await message.answer("Год должен быть числом. Введите год производства:")
         return
 
     # Получение всех данных из состояния
     data = await state.get_data()
-    car_data = {
-        "user_id": message.from_user.id,
-        "brand": data["brand"],
-        "model": data["model"],
-        "last_service_date": data["last_service_date"],
-        "production_year": year,
-    }
+    user_id = message.from_user.id
     
     try:
-        # await add_car(car_data)
-        print(car_data)
+        car_id = car_service.add_car(
+            user_id=user_id,
+            brand=data["brand"],
+            model=data["model"],
+            year_of_manufacture=year,
+            last_service_time=data["last_service_date"],
+        )
 
-        await message.answer("Машина успешно обновлена!")
+        await message.answer("Машина успешно добавлена!")
         await message.answer(
             "Выберите действие:",
             reply_markup=main_menu_keyboard(),
         )
+        logger.info(f"Car {car_id} added successfully for user {user_id}")
     except Exception as e:
         error_msg = f"❌ Неожиданная ошибка"
-        logger.error(f"Unexpected error when adding car for user {message.from_user.id}: {e}")
+        logger.error(f"Unexpected error when adding car for user {user_id}: {e}")
         await message.answer(error_msg)
     finally:
         await state.clear()
@@ -125,10 +136,26 @@ def register_add_car_handlers(dp: Dispatcher):
     """Регистрация всех хендлеров для добавления машины"""
 
     dp.callback_query.register(
-        cmd_add_car,
+        cmd_add_car_callback,
         F.data == "add_car",
     )
-    dp.message.register(process_brand, AddCarStates.brand)
-    dp.message.register(process_model, AddCarStates.model)
-    dp.message.register(process_last_service_date, AddCarStates.last_service_date)
-    dp.message.register(process_production_year, AddCarStates.production_year)
+    dp.message.register(
+        cmd_add_car,
+        Command("add_car"),
+    )
+    dp.message.register(
+        process_brand, 
+        AddCarStates.brand
+    )
+    dp.message.register(
+        process_model, 
+        AddCarStates.model
+    )
+    dp.message.register(
+        process_last_service_date, 
+        AddCarStates.last_service_date
+    )
+    dp.message.register(
+        process_production_year,
+        AddCarStates.production_year
+    )

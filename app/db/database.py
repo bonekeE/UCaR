@@ -1,12 +1,8 @@
-"""
-Модуль для работы с базой данных автомобилей и пользователей.
-"""
 from datetime import datetime
 from typing import List, Dict, Optional
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from psycopg2 import pool
 
 
 class Database:

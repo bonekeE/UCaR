@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+from app import car_service
 from keyboards.common import car_inline_keyboard, main_menu_keyboard
 
 from aiogram import F, Dispatcher
@@ -28,13 +29,7 @@ async def cmd_update_car(callback: CallbackQuery, state: FSMContext):
     user_id = callback.message.from_user.id
 
     try:
-        # cars = await get_cars(user_id)
-        cars = [
-            {'id': 1, 'brand': 'Toyota', 'model': 'Camry', 'last_service_date': '2023-12-01', 'production_year': 2018},
-            {'id': 2, 'brand': 'Honda', 'model': 'Civic', 'last_service_date': '2024-01-15', 'production_year': 2020},
-            {'id': 3, 'brand': 'Ford', 'model': 'Focus', 'last_service_date': '2023-11-20', 'production_year': 2017},
-            {'id': 4, 'brand': 'Chevrolet', 'model': 'Malibu', 'last_service_date': '2024-02-10', 'production_year': 2019},
-        ]
+        cars = car_service.get_user_cars(user_id)
 
         if not cars or len(cars) == 0:
             await callback.message.answer(
@@ -44,12 +39,23 @@ async def cmd_update_car(callback: CallbackQuery, state: FSMContext):
             await state.clear()
             return
         
-        await state.update_data(cars=cars)
+        cars_for_keyboard = [
+            {
+                'id': car['car_id'],
+                'brand': car['brand'],
+                'model': car['model'],
+                'last_service_date': car['last_service_time'],
+                'production_year': car['year_of_manufacture']
+            }
+            for car in cars
+        ]
+        
+        await state.update_data(cars=cars_for_keyboard)
         await state.set_state(UpdateCarStates.car_id)
         
         await callback.message.answer(
             "Выберите машину для обновления:",
-            reply_markup=car_inline_keyboard(cars),
+            reply_markup=car_inline_keyboard(cars_for_keyboard),
         )
         logger.info(f"User {user_id} requested car list for update, found {len(cars)} cars")
                 
@@ -164,34 +170,38 @@ async def process_production_year(message: Message, state: FSMContext):
             )
             return
 
-        logger.info(f"User {message.from_user.id} entered service date: {year_str}")
+        logger.info(f"User {message.from_user.id} entered production year: {year_str}")
     except ValueError:
-        logger.error(f"User {message.from_user.id} entered service date: {year_str}")
+        logger.error(f"User {message.from_user.id} entered invalid production year: {year_str}")
         await message.answer("Год должен быть числом. Введите год производства:")
         return
 
     # Получение всех данных из состояния
     data = await state.get_data()
-    car_data = {
-        "user_id": message.from_user.id,
-        "brand": data["updated_car"]["brand"],
-        "model": data["updated_car"]["model"],
-        "last_service_date": data["updated_car"]["last_service_date"],
-        "production_year": year,
-    }
+    user_id = message.from_user.id
+    updated_car = data["updated_car"]
+    car_id = updated_car.get('id')
     
     try:
-        # await add_car(car_data)
-        print(car_data)
+        success = car_service.update_car_service_time(
+            user_id=user_id,
+            car_id=car_id,
+            last_service_time=updated_car["last_service_date"]
+        )
 
-        await message.answer("Машина успешно обновлена!")
+        if success:
+            await message.answer("Машина успешно обновлена!")
+        else:
+            await message.answer("❌ Не удалось обновить машину. Проверьте правильность данных.")
+        
         await message.answer(
             "Выберите действие:",
             reply_markup=main_menu_keyboard(),
         )
+        logger.info(f"Car {car_id} updated successfully for user {user_id}")
     except Exception as e:
         error_msg = f"❌ Неожиданная ошибка"
-        logger.error(f"Unexpected error when adding car for user {message.from_user.id}: {e}")
+        logger.error(f"Unexpected error when updating car for user {user_id}: {e}")
         await message.answer(error_msg)
     finally:
         await state.clear()
@@ -208,7 +218,19 @@ def register_update_car_handlers(dp: Dispatcher):
         process_car_selection,
         UpdateCarStates.car_id,
     )
-    dp.message.register(process_brand, UpdateCarStates.brand)
-    dp.message.register(process_model, UpdateCarStates.model)
-    dp.message.register(process_last_service_date, UpdateCarStates.last_service_date)
-    dp.message.register(process_production_year, UpdateCarStates.production_year)
+    dp.message.register(
+        process_brand,
+        UpdateCarStates.brand,
+    )
+    dp.message.register(
+        process_model,
+        UpdateCarStates.model,
+    )
+    dp.message.register(
+        process_last_service_date,
+        UpdateCarStates.last_service_date,
+    )
+    dp.message.register(
+        process_production_year,
+        UpdateCarStates.production_year,
+    )
