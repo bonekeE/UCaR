@@ -2,13 +2,18 @@ import logging
 from datetime import datetime
 
 from app import car_service
-from keyboards.common import car_inline_keyboard, main_menu_keyboard
+from keyboards import (
+    car_inline_keyboard,
+    main_menu_keyboard,
+    select_cancel,
+)
 
 from aiogram import F, Dispatcher
-from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import ReplyKeyboardRemove
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +27,7 @@ class UpdateCarStates(StatesGroup):
 async def cmd_update_car(callback: CallbackQuery, state: FSMContext):
     """Начало процесса обновления машины - запрос списка машин с сервера"""
     await callback.message.delete()
-
-    user_id = callback.message.from_user.id
+    user_id = callback.from_user.id
 
     try:
         cars = car_service.get_user_cars(user_id)
@@ -42,7 +46,7 @@ async def cmd_update_car(callback: CallbackQuery, state: FSMContext):
                 'brand': car['brand'],
                 'model': car['model'],
                 'last_service_date': car['last_service_time'],
-                'production_year': car['year_of_manufacture']
+                'production_year': car['year_of_manufacture'],
             }
             for car in cars
         ]
@@ -68,6 +72,12 @@ async def process_car_selection(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
 
     car_id = int(callback.data)
+    if car_id == -1:
+        await callback.message.answer(
+            "Выберите действие:",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
 
     # Получение данных о машине из состояния
     data = await state.get_data()
@@ -88,8 +98,8 @@ async def process_car_selection(callback: CallbackQuery, state: FSMContext):
     await state.update_data(updated_car=selected_car)
 
     await callback.message.answer(
-        f"Введенная дата последнего ТО: {selected_car['last_service_date']}. "
-        "Введите дату последнего ТО (формат: ДД.ММ.ГГГГ, например: 15.03.2024):"
+        "Введите новую дату последнего ТО (формат: ДД.ММ.ГГГГ, например: 15.03.2024):",
+        reply_markup=select_cancel(),
     )
     await state.set_state(UpdateCarStates.last_service_date)
 
@@ -97,6 +107,19 @@ async def process_car_selection(callback: CallbackQuery, state: FSMContext):
 async def process_last_service_date(message: Message, state: FSMContext):
     """Обработка даты последнего ТО"""
     date_str = message.text.strip()
+    
+    if date_str.lower() == "cancel":
+        await message.answer(
+            "Действие отменено",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+
+        await state.clear()
+        await message.answer(
+            "Выберите действие:",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
 
     try:
         service_date = datetime.strptime(date_str, "%d.%m.%Y")
@@ -110,8 +133,10 @@ async def process_last_service_date(message: Message, state: FSMContext):
     except ValueError:
         logger.error(f"User {message.from_user.id} entered service date: {date_str}")
         await message.answer(
-            "Неверный формат даты. Используйте формат ДД.ММ.ГГГГ (например: 15.03.2024):"
+            "Неверный формат даты. Используйте формат ДД.ММ.ГГГГ (например: 15.03.2024):",
+            reply_markup=select_cancel(),
         )
+
         return
 
     data = await state.get_data()

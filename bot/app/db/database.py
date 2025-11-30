@@ -235,8 +235,6 @@ class Database:
         conn = self._get_connection()
         try:
             # Явно преобразуем user_id в int для корректного сравнения
-            user_id = int(user_id)
-            
             with conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT 

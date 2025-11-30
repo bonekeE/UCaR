@@ -1,8 +1,8 @@
 from keyboards.common import main_menu_keyboard
 
-from aiogram import Dispatcher, types
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters import Text
+from aiogram import F, Dispatcher, types
+from aiogram.fsm.context import FSMContext
+from aiogram.filters import Command
 
 
 async def cancel_handler(message: types.Message, state: FSMContext) -> None:
@@ -16,22 +16,20 @@ async def cancel_handler(message: types.Message, state: FSMContext) -> None:
         reply_markup=types.ReplyKeyboardRemove(),
     )
 
-    await state.finish()
+    await state.clear()
     await message.answer(
         "Выберите действие:",
         reply_markup=main_menu_keyboard(),
     )
 
 
-def register_handlers_cancel_action(dispatcher: Dispatcher) -> None:
+def register_handlers_cancel_action(dp: Dispatcher) -> None:
     """Register handlers for cancel action."""
-    dispatcher.register_message_handler(
+    dp.message.register(
         cancel_handler,
-        state="*",
-        commands=["cancel"],
+        Command("cancel"),
     )
-    dispatcher.register_message_handler(
+    dp.message.register(
         cancel_handler,
-        Text(equals="Cancel", ignore_case=True),
-        state="*",
+        F.text.lower() == "Cancel".lower(),
     )

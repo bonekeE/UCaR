@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 async def cmd_get_cars(callback: CallbackQuery):
     """Получение списка машин пользователя"""
     await callback.message.delete()
-    user_id = callback.message.from_user.id
+    user_id = callback.from_user.id
     
     try:
         cars = car_service.get_user_cars(user_id)

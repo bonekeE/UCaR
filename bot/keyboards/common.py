@@ -1,8 +1,8 @@
 from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
-    ReplyKeyboardMarkup,
     KeyboardButton,
+    ReplyKeyboardMarkup,
 )
 
 
@@ -18,6 +18,13 @@ def car_inline_keyboard(cars: list) -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text=button_text,
                 callback_data=str(car_id),
+            )
+        ])
+    
+    keyboard_buttons.append([
+            InlineKeyboardButton(
+                text="cancel",
+                callback_data=str(-1),
             )
         ])
     
@@ -40,3 +47,31 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     ) 
     
     return markupKeyboard
+
+
+# def select_cancel() -> ReplyKeyboardMarkup:
+#     markupKeyboard = InlineKeyboardMarkup(
+#         inline_keyboard=[
+#             [
+#                 InlineKeyboardButton(
+#                     text='Cancel',
+#                     callback_data='Cancel',
+#                 ),
+#             ],
+#         ],
+#         resize_keyboard=True,
+#     ) 
+    
+#     return markupKeyboard
+
+
+def select_cancel() -> ReplyKeyboardMarkup:
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="cancel")],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+    return keyboard
