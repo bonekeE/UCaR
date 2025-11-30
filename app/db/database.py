@@ -1,8 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Optional
 import os
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2 import pool, extras
 
 
 class Database:
@@ -36,7 +35,7 @@ class Database:
         
         # Создаем пул соединений
         try:
-            self.connection_pool = psycopg2.pool.ThreadedConnectionPool(
+            self.connection_pool = pool.ThreadedConnectionPool(
                 connection_pool_min,
                 connection_pool_max,
                 host=self.host,
@@ -235,7 +234,7 @@ class Database:
         """
         conn = self._get_connection()
         try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT 
                         c.car_id,
@@ -423,7 +422,7 @@ class Database:
         """
         conn = self._get_connection()
         try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT 
                         consumable_id,
@@ -459,7 +458,7 @@ class Database:
         """
         conn = self._get_connection()
         try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT 
                         cons.consumable_id,
@@ -494,7 +493,7 @@ class Database:
         """
         conn = self._get_connection()
         try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT 
                         u.user_id,
@@ -539,7 +538,7 @@ class Database:
         """
         conn = self._get_connection()
         try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT 
                         u.user_id,
@@ -580,7 +579,7 @@ class Database:
         """
         conn = self._get_connection()
         try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT 
                         car_id,
