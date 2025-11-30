@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Optional
 import os
-from psycopg2 import pool, extras
+from psycopg2 import pool, extras, IntegrityError
 
 
 class Database:
@@ -168,7 +168,7 @@ class Database:
                 car_id = cur.fetchone()[0]
                 conn.commit()
                 return car_id
-        except psycopg2.IntegrityError as e:
+        except IntegrityError as e:
             conn.rollback()
             # Если автомобиль уже существует, получаем его car_id
             with conn.cursor() as cur:
@@ -234,6 +234,9 @@ class Database:
         """
         conn = self._get_connection()
         try:
+            # Явно преобразуем user_id в int для корректного сравнения
+            user_id = int(user_id)
+            
             with conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT 
@@ -245,7 +248,7 @@ class Database:
                         uc.user_car_id
                     FROM user_cars uc
                     JOIN cars c ON uc.car_id = c.car_id
-                    WHERE uc.user_id = %s
+                    WHERE uc.user_id = %s::BIGINT
                     ORDER BY uc.last_service_time DESC
                 """, (user_id,))
                 
