@@ -1,6 +1,3 @@
-# car_parts_lifetime.py
-
-import os
 import json
 from typing import Dict, Any
 

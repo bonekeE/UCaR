@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional
 from app.db.database import Database
-from main_logic.mistral import get_parts_lifetime
+from app.ai import get_parts_lifetime
 
 
 class CarService:

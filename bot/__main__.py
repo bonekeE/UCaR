@@ -4,17 +4,17 @@ import os
 from datetime import time
 from zoneinfo import ZoneInfo
 
-from bot.app.notifier.notifier import check_all_cars
-
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
-
+from app.notifier import check_all_cars
 from handlers import (
     register_start_handler,
     register_car_handlers,
     register_handlers_cancel_action,
 )
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
