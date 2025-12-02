@@ -1,7 +1,12 @@
 import asyncio
 import logging
 import os
+from datetime import time
+from zoneinfo import ZoneInfo
 
+from bot.app.notifier.notifier import check_all_cars
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -15,6 +20,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+SEND_TOP_TIME = time(hour=12, minute=0, tzinfo=ZoneInfo("Europe/Moscow"))
 
 
 async def main():
@@ -33,9 +39,25 @@ async def main():
     register_car_handlers(dp)
     register_handlers_cancel_action(dp)
     
-    # Запуск polling
+    scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
+    scheduler.add_job(
+        check_all_cars,
+        trigger="cron",
+        hour=12,
+        minute=0,
+        coalesce=True,
+        misfire_grace_time=3600,
+        args=(bot,),
+    )
+    scheduler.start()
+    
     logger.info("Bot started successfully!")
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await dp.storage.close()
+
+        await bot.session.close()
 
 
 if __name__ == "__main__":
