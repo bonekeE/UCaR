@@ -9,6 +9,7 @@ from handlers import (
     register_start_handler,
     register_car_handlers,
     register_handlers_cancel_action,
+    register_periodic_task_handler,
 )
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -38,6 +39,7 @@ async def main():
     register_start_handler(dp)
     register_car_handlers(dp)
     register_handlers_cancel_action(dp)
+    register_periodic_task_handler(dp)
     
     scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
     scheduler.add_job(
