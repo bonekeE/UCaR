@@ -27,7 +27,7 @@ Your task is to estimate the typical service life of car parts and consumables
 in MONTHS for an average driver.
 
 Rules:
-- Respond ONLY in English.
+- Part names must be strictly in Russian, everything else must be strictly in English.
 - All lifetimes must be INTEGER MONTHS.
 - Assume an average driver and mixed city/highway usage.
 - No Markdown, no code fences, no ``` blocks.
