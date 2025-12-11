@@ -41,6 +41,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text='Просмотреть машины', callback_data='get_cars'),
+                InlineKeyboardButton(text='Удалить машину', callback_data='delete_car'),
             ],
         ],
         resize_keyboard=True,

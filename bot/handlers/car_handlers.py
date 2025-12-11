@@ -1,6 +1,6 @@
 import logging
 
-from states import register_add_car_handlers, register_update_car_handlers
+from states import register_add_car_handlers, register_update_car_handlers, register_delete_car_handlers
 from keyboards.common import main_menu_keyboard
 
 from aiogram import F, Dispatcher
@@ -53,3 +53,4 @@ def register_car_handlers(dp: Dispatcher):
     )
     register_add_car_handlers(dp)
     register_update_car_handlers(dp)
+    register_delete_car_handlers(dp)
