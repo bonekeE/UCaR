@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 
 from app import car_service
+from app.ai import CarNotFoundError
 from keyboards import main_menu_keyboard, select_cancel
 
 from aiogram import F, Dispatcher
@@ -180,12 +181,21 @@ async def process_last_service_date(message: Message, state: FSMContext):
             last_service_time=data["last_service_date"],
         )
 
-        await message.answer("Машина успешно добавлена!")
+        await message.answer("✅ Машина успешно добавлена!")
         await message.answer(
             "Выберите действие:",
             reply_markup=main_menu_keyboard(),
         )
         logger.info(f"Car {car_id} added successfully for user {user_id}")
+    except CarNotFoundError as e:
+        # Специальная обработка случая, когда машина не найдена
+        error_msg = f"❌ Расходные материалы не были загружены автоматически."
+        logger.warning(f"Car not found by LLM for user {user_id}: {e.brand} {e.model} ({e.year_of_manufacture}) - {e}")
+        await message.answer(error_msg)
+        await message.answer(
+            "Выберите действие:",
+            reply_markup=main_menu_keyboard(),
+        )
     except Exception as e:
         error_msg = f"❌ Неожиданная ошибка"
         logger.error(f"Unexpected error when adding car for user {user_id}: {e}")

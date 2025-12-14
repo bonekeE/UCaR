@@ -1,4 +1,5 @@
 import json
+import time
 from typing import Dict, Any
 
 import httpx
@@ -64,7 +65,48 @@ def _extract_json(raw_content: str) -> str:
     return content
 
 
-def get_parts_lifetime(car_name: str) -> Dict[str, Any]:
+class CarNotFoundError(Exception):
+    """Исключение, когда машина не найдена нейронкой"""
+    
+    def __init__(self, message: str, brand: str = None, model: str = None, year_of_manufacture: int = None):
+        """
+        Args:
+            message: Сообщение об ошибке
+            brand: Марка автомобиля
+            model: Модель автомобиля
+            year_of_manufacture: Год выпуска
+        """
+        super().__init__(message)
+        self.brand = brand
+        self.model = model
+        self.year_of_manufacture = year_of_manufacture
+
+
+def get_parts_lifetime(
+    car_name: str, 
+    max_retries: int = 3,
+    brand: str = None,
+    model: str = None,
+    year_of_manufacture: int = None
+) -> Dict[str, Any]:
+    """
+    Получает данные о сроке службы деталей от LLM с повторными попытками при неквалидном JSON.
+    
+    Args:
+        car_name: Название машины
+        max_retries: Максимальное количество попыток при неквалидном JSON
+        brand: Марка автомобиля (для передачи в исключение)
+        model: Модель автомобиля (для передачи в исключение)
+        year_of_manufacture: Год выпуска (для передачи в исключение)
+    
+    Returns:
+        Словарь с данными о деталях
+    
+    Raises:
+        CarNotFoundError: Если машина не найдена
+        ValueError: Если после всех попыток JSON все еще неквалидный
+        MistralError: При ошибках API
+    """
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {
@@ -76,35 +118,75 @@ def get_parts_lifetime(car_name: str) -> Dict[str, Any]:
         },
     ]
 
-    print(">> Sending request to Mistral...")
+    for attempt in range(1, max_retries + 1):
+        print(f">> Sending request to Mistral (attempt {attempt}/{max_retries})...")
 
-    try:
-        response = client.chat.complete(
-            model=MODEL_NAME,
-            messages=messages,
-        )
-    except MistralError as e:
-        # Здесь ты хотя бы увидишь, что именно прилетело (429, 401, 403 и т.д.)
-        print("!! Mistral API error:")
-        print("   message:", e.message)
-        print("   status_code:", e.status_code)
-        print("   body:", e.body)
-        raise
+        try:
+            response = client.chat.complete(
+                model=MODEL_NAME,
+                messages=messages,
+            )
+        except MistralError as e:
+            # Здесь ты хотя бы увидишь, что именно прилетело (429, 401, 403 и т.д.)
+            print("!! Mistral API error:")
+            print("   message:", e.message)
+            print("   status_code:", e.status_code)
+            print("   body:", e.body)
+            raise
 
-    print(">> Got response, parsing JSON...")
+        print(">> Got response, parsing JSON...")
 
-    raw_content = response.choices[0].message.content
-    content = _extract_json(raw_content)
+        raw_content = response.choices[0].message.content
+        content = _extract_json(raw_content)
 
-    try:
-        data = json.loads(content)
-    except json.JSONDecodeError as e:
-        print("!! Raw content from model:")
-        print(raw_content)
-        raise ValueError("Model returned invalid JSON") from e
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            print(f"!! Attempt {attempt}: Invalid JSON received")
+            print(f"!! Raw content from model:")
+            print(raw_content)
+            last_error = e
+            
+            # Если это не последняя попытка, ждем немного и повторяем
+            if attempt < max_retries:
+                wait_time = 1.0 * attempt  # Экспоненциальная задержка
+                print(f"!! Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+                continue
+            else:
+                # Все попытки исчерпаны
+                raise ValueError(f"Model returned invalid JSON after {max_retries} attempts") from e
 
-    return data
-
+        # Проверяем, что данные валидны и машина найдена
+        parts_lifetime = data.get("parts_lifetime")
+        if not parts_lifetime:
+            raise CarNotFoundError(
+                f"Машина '{car_name}' не найдена. Нейронка не смогла определить детали для этой модели.",
+                brand=brand,
+                model=model,
+                year_of_manufacture=year_of_manufacture
+            )
+        
+        if not isinstance(parts_lifetime, dict):
+            raise CarNotFoundError(
+                f"Машина '{car_name}' не найдена. Некорректный формат данных о деталях.",
+                brand=brand,
+                model=model,
+                year_of_manufacture=year_of_manufacture
+            )
+        
+        # Проверяем, что есть хотя бы одна деталь
+        if len(parts_lifetime) == 0:
+            raise CarNotFoundError(
+                f"Машина '{car_name}' не найдена. Список деталей пуст.",
+                brand=brand,
+                model=model,
+                year_of_manufacture=year_of_manufacture
+            )
+        
+        print(f">> Successfully parsed JSON with {len(parts_lifetime)} parts")
+        return data
+    
 
 if __name__ == "__main__":
     result = get_parts_lifetime("Toyota Camry 2015")

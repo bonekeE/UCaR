@@ -1,7 +1,11 @@
 from typing import List, Dict, Optional
-from app.db.database import Database
-from app.ai import get_parts_lifetime
+import logging
 
+from app.db.database import Database
+from app.ai import get_parts_lifetime, CarNotFoundError
+
+
+logger = logging.getLogger(__name__)
 
 class CarService:
     """Сервис для работы с автомобилями."""
@@ -38,21 +42,35 @@ class CarService:
         """
         # Создаем автомобиль в БД (или получаем существующий)
         car_id = self.db.add_car(brand, model, year_of_manufacture)
-        
-        # Создаем связь пользователь-автомобиль
-        self.db.add_user_car(user_id, car_id, last_service_time)
-        
+
         # Получаем данные о расходных материалах от LLM
         car_name = f"{brand} {model} {year_of_manufacture}"
         try:
-            parts_data = get_parts_lifetime(car_name)
+            parts_data = get_parts_lifetime(
+                car_name,
+                brand=brand,
+                model=model,
+                year_of_manufacture=year_of_manufacture
+            )
             # Добавляем расходные материалы в БД
             self.db.add_consumables_from_llm_json(car_id, parts_data)
+        except CarNotFoundError as e:
+            # Специальная обработка случая, когда машина не найдена
+            logger.error(
+                f"❌ Ошибка: {e}"
+                f"Машина: {e.brand} {e.model} ({e.year_of_manufacture})"
+                "Расходные материалы не были добавлены автоматически."
+            )
+            raise
         except Exception as e:
-            # Логируем ошибку, но не прерываем процесс добавления автомобиля
-            print(f"Предупреждение: не удалось получить данные о расходных материалах для {car_name}: {e}")
-            print("Автомобиль добавлен, но расходные материалы не были добавлены автоматически.")
-        
+            logger.error(
+                f"Предупреждение: не удалось получить данные о расходных материалах для {car_name}: {e}"
+                "Расходные материалы не были добавлены автоматически."
+            )
+            raise        
+        # Создаем связь пользователь-автомобиль
+        self.db.add_user_car(user_id, car_id, last_service_time)
+
         return car_id
     
     def get_user_cars(self, user_id: int) -> List[Dict]:
