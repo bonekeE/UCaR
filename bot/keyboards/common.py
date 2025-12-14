@@ -13,14 +13,15 @@ def car_inline_keyboard(cars: list) -> InlineKeyboardMarkup:
         car_id = car.get('id')
         brand = car.get('brand')
         model = car.get('model')
-        button_text = f"{brand} {model}"
+        production_year = car.get('production_year')
+        button_text = f"{brand} {model} {production_year}"
         keyboard_buttons.append([
             InlineKeyboardButton(
                 text=button_text,
                 callback_data=str(car_id),
             )
         ])
-    
+
     keyboard_buttons.append([
             InlineKeyboardButton(
                 text="cancel",
@@ -48,22 +49,6 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     ) 
     
     return markupKeyboard
-
-
-# def select_cancel() -> ReplyKeyboardMarkup:
-#     markupKeyboard = InlineKeyboardMarkup(
-#         inline_keyboard=[
-#             [
-#                 InlineKeyboardButton(
-#                     text='Cancel',
-#                     callback_data='Cancel',
-#                 ),
-#             ],
-#         ],
-#         resize_keyboard=True,
-#     ) 
-    
-#     return markupKeyboard
 
 
 def select_cancel() -> ReplyKeyboardMarkup:

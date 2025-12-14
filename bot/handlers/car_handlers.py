@@ -31,8 +31,8 @@ async def cmd_get_cars(callback: CallbackQuery):
             response_text += f"Машина #{idx}:\n"
             response_text += f"Бренд: {car.get('brand')}\n"
             response_text += f"Модель: {car.get('model')}\n"
-            response_text += f"Дата последнего ТО: {car.get('last_service_time')}\n"
-            response_text += f"Год производства: {car.get('year_of_manufacture')}\n\n"
+            response_text += f"Год производства: {car.get('year_of_manufacture')}\n"
+            response_text += f"Дата последнего ТО: {car.get('last_service_time')}\n\n"
                     
         await callback.message.answer(response_text)
         await callback.message.answer(
