@@ -51,7 +51,10 @@ async def check_all_cars(bot: Bot):
         message = "\n".join(main_message)
 
         if len(message) < 4096:
-            await bot.send_message(user_id, message)
+            try:
+                await bot.send_message(user_id, message)
+            except:
+                pass
             continue    
 
         iterations = 0  
@@ -67,13 +70,20 @@ async def check_all_cars(bot: Bot):
                 
             message_send = message_part[:index]
 
-            await bot.send_message(user_id, message_send.strip())
+            try:
+                await bot.send_message(user_id, message_send.strip())
+            except:
+                pass
+
             message = message[index:]
 
             iterations += 1
 
         if len(message) > 0:
-            await bot.send_message(user_id, message)
+            try:
+                await bot.send_message(user_id, message)
+            except:
+                pass
 
     if notifications_sent > 0:
         logger.info(f"Проверка завершена. Отправлено уведомлений: {notifications_sent}")
